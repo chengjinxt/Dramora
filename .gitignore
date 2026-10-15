@@ -1,0 +1,16 @@
+# Python 虚拟环境（各项目自带，可重建，不提交）
+MoneyPrinterTurbo/MoneyPrinterTurbo/.venv/
+
+# 任务产物与下载缓存（体积大、可重建，不提交）
+MoneyPrinterTurbo/MoneyPrinterTurbo/storage/
+MoneyPrinterTurbo/mpt_videos/
+
+# 视频文件（体积大，不提交到 GitHub；本地保留，流水线直接读本地）
+*.mp4
+
+# 参考示例视频（体积大，GitHub 推不上去，不提交）
+参考示例/
+
+# Windows 系统文件
+Thumbs.db
+Desktop.ini
