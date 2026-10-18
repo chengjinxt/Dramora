@@ -139,7 +139,12 @@ foreach ($v in $manifest.videos) {
     --video-aspect "9:16" `
     --video-clip-duration $ClipDuration `
     --voice-name "zh-CN-XiaoxiaoNeural" `
-    --video-language "zh-CN" 2>&1 | Out-String
+    --video-language "zh-CN" `
+    --font-name "MicrosoftYaHeiBold.ttc" `
+    --text-fore-color "#000000" `
+    --subtitle-background-color "#FFE600" `
+    --rounded-subtitle-background `
+    --stroke-width 0 2>&1 | Out-String
 
   $m = [regex]::Match($out, '"task_id":\s*"([0-9a-f\-]{36})"')
   if (-not $m.Success) {

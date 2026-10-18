@@ -1689,7 +1689,7 @@ def generate_video(
                 width=box_w,
                 height=clip_h,
                 color=bg_color,
-                alpha=140,
+                alpha=255,
                 radius=radius,
             )
             text_position = _get_visible_center_position(text_clip, box_w, clip_h)
