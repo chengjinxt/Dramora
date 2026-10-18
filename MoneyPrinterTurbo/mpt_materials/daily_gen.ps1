@@ -23,6 +23,7 @@ $MatRoot    = "E:\PerSourceCodeStore\github\chengjinxt\Dramora\MoneyPrinterTurbo
 $OutRoot    = "E:\PerSourceCodeStore\github\chengjinxt\Dramora\MoneyPrinterTurbo\mpt_videos"
 $Python     = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $Ffprobe    = "D:\DevTools\FFmpeg\bin\ffprobe.exe"
+$Ffmpeg     = "D:\DevTools\FFmpeg\bin\ffmpeg.exe"
 $UsagePath  = Join-Path $MatRoot "usage.json"
 $ClipDuration = 8     # 每个素材镜头最多用 8 秒（传给 cli.py 的 --video-clip-duration）
 $NeedSeconds  = 65    # 目标覆盖 65 秒（应对最长 60 秒口播 + 余量）
@@ -156,6 +157,23 @@ foreach ($v in $manifest.videos) {
   $destName = "{0}_{1}.mp4" -f $cat, $safeTitle
   $dest = Join-Path $outDir $destName
   Copy-Item $final $dest -Force
+
+  # ---- 片头标题卡：黄底黑字圆角条（频道风格），覆盖前 3 秒 ----
+  $cardPng = Join-Path $outDir "title_card.png"
+  & $Python (Join-Path $MatRoot "make_title_card.py") --title $title --output $cardPng 2>&1 | Out-Null
+  if (Test-Path $cardPng) {
+    $tmpTitled = $dest -replace '\.mp4$', '_titled.mp4'
+    & $Ffmpeg -y -i $dest -i $cardPng -filter_complex "[0:v][1:v]overlay=(W-w)/2:(H-h)/2:enable='between(t,0,3)'[v]" -map "[v]" -map 0:a -c:v libx264 -crf 18 -preset veryfast -c:a copy $tmpTitled 2>&1 | Out-Null
+    if (Test-Path $tmpTitled) {
+      Move-Item $tmpTitled $dest -Force
+      Write-Output "已加片头标题卡"
+    } else {
+      Write-Output "标题卡合成失败，保留原片"
+    }
+    Remove-Item $cardPng -Force -ErrorAction SilentlyContinue
+  } else {
+    Write-Output "标题卡生成失败，跳过"
+  }
   $dur = & $Ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 $dest
   $summary += "$cat|$title|成功|$([math]::Round([double]$dur))秒|$dest"
   Write-Output "完成: $dest"
