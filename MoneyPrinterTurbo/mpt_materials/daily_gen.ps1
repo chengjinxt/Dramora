@@ -12,7 +12,7 @@
 # }
 # 素材选择逻辑：
 #  1. 若 manifest 提供了 materials（worker 按 clip_tags.json 内容匹配选出），优先使用该顺序；
-#  2. 3 天内用过的素材默认不再用（usage.json 记录），除非池子不够用；
+#  2. 12 天内用过的素材默认不再用（usage.json 记录），除非池子不够用；
 #  3. 按上次使用时间（未用过优先）补足，直到覆盖 65 秒或选满 12 条；
 #  4. 实际使用的素材记入 usage.json（日期）。
 param([Parameter(Mandatory=$true)][string]$ManifestPath)
@@ -27,7 +27,7 @@ $UsagePath  = Join-Path $MatRoot "usage.json"
 $ClipDuration = 8     # 每个素材镜头最多用 8 秒（传给 cli.py 的 --video-clip-duration）
 $NeedSeconds  = 65    # 目标覆盖 65 秒（应对最长 60 秒口播 + 余量）
 $MaxClips     = 12
-$ExcludeDays  = 3     # 3 天内用过的素材不再用
+$ExcludeDays  = 12     # 12 天内用过的素材不再用
 
 # ---- 用量记录 ----
 $usage = @{}
@@ -74,7 +74,7 @@ function Select-Materials($poolDir, $poolName, $preferredFiles) {
   }, Name
   foreach ($c in $rest) { $ordered += $c.Name }
 
-  # 先取 3 天内没用过的
+  # 先取 12 天内没用过的
   $take = {
     param($names)
     $sel = @(); $covered = 0.0
