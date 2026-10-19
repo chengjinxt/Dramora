@@ -97,10 +97,10 @@ function Select-Materials($poolDir, $poolName, $preferredFiles) {
     $r2 = & $take ($ordered | Where-Object { $selected -notcontains $_ })
     $selected = $selected + $r2.sel
   }
-  foreach ($name in $selected) { $poolUsage[$name] = $today }
+  # usage 标记挪到单条视频成功后（失败不记，避免污染轮换）
   $names = ($selected | ForEach-Object { $_ }) -join ","
-  Write-Output ("选中素材(" + $poolName + "): " + $names)
-  return @($selected | ForEach-Object { Join-Path $poolDir $_ })
+  Write-Host ("选中素材(" + $poolName + "): " + $names)
+  return @{ files = @($selected | ForEach-Object { Join-Path $poolDir $_ }); names = @($selected); pool = $poolName }
 }
 
 # ---- 主流程 ----
@@ -123,7 +123,8 @@ foreach ($v in $manifest.videos) {
   if ($v.PSObject.Properties.Name -contains "materials" -and $null -ne $v.materials) {
     $preferred = @($v.materials)
   }
-  $matFiles = Select-Materials $v.materials_dir $poolName $preferred
+  $sel = Select-Materials $v.materials_dir $poolName $preferred
+  $matFiles = $sel.files
   if ($matFiles.Count -eq 0) {
     $summary += "$cat|$title|失败|素材池为空"
     Write-Output "素材池为空，跳过"
@@ -162,6 +163,7 @@ foreach ($v in $manifest.videos) {
   $destName = "{0}_{1}.mp4" -f $cat, $safeTitle
   $dest = Join-Path $outDir $destName
   Copy-Item $final $dest -Force
+  foreach ($n in $sel.names) { $usage[$sel.pool][$n] = $today }
 
   # ---- 片头标题卡：黄底黑字圆角条（频道风格），覆盖前 3 秒 ----
   $cardPng = Join-Path $outDir "title_card.png"
