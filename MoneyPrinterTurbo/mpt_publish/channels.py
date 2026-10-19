@@ -72,6 +72,27 @@ class ChannelsPublisher:
         # 兜底：URL 仍在 platform 下即视为已登录
         return "channels.weixin.qq.com/platform" in url
 
+    def check_login_state(self):
+        """不刷新页面，只看当前状态（扫码等待轮询用，避免刷掉二维码）。
+
+        返回: "qrcode"（还在扫码页）/ "select"（已扫码，出现选择视频号框）
+              / "in"（已进入某视频号主页）/ "unknown"
+        """
+        page = self._page
+        try:
+            url = page.url
+            if "login" in url or "qrcode" in url:
+                return "qrcode"
+            if page.get_by_text("选择视频号登录").count() > 0:
+                return "select"
+            if page.get_by_text("微信扫码登录").count() > 0:
+                return "qrcode"
+            if page.get_by_text("内容管理").count() > 0:
+                return "in"
+        except Exception:
+            pass
+        return "unknown"
+
     def save_storage(self):
         os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
         self._ctx.storage_state(path=self.storage_path)

@@ -51,19 +51,21 @@ def main():
     with ChannelsPublisher(storage_path, headless=False) as pub:
         page = pub._page
         page.goto(PLATFORM_HOME, wait_until="domcontentloaded", timeout=30000)
+        # 轮询只看页面状态，不刷新（刷新会刷掉二维码）
         deadline = time.time() + args.timeout
-        logged_in = False
+        scanned = False
         while time.time() < deadline:
-            if pub.is_logged_in():
-                logged_in = True
+            state = pub.check_login_state()
+            if state in ("select", "in"):
+                scanned = True
                 break
             time.sleep(3)
-        if not logged_in:
+        if not scanned:
             print("超时未扫码，未保存。请重新运行 login.py。")
             sys.exit(2)
 
-        print("扫码成功，等“选择视频号登录”框出来（要过一会儿）...")
-        time.sleep(12)
+        print("扫码成功，等“选择视频号登录”框完全出来（要过一会儿）...")
+        time.sleep(8)
         print("=" * 60)
         print("请在浏览器里的“选择视频号登录”框中，手动点进正确的视频号，")
         print("确认进入该视频号的主页后，回到这里按回车，保存登录态。")
