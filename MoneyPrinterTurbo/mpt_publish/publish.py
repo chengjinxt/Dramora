@@ -143,14 +143,38 @@ def run_retry():
         print(f"{'成功' if ok else '失败(' + str(err) + ')'}: {os.path.basename(vp)}")
 
 
+def run_single(video_path):
+    accounts = load_accounts()
+    log = load_log()
+    if not os.path.exists(video_path):
+        print(f"文件不存在: {video_path}")
+        return
+    category, _ = parse_video(video_path)
+    try:
+        ok, err = publish_one(video_path, category, accounts)
+    except Exception as e:
+        ok, err = False, f"exception: {e}"
+    log[video_path] = {
+        "status": "published" if ok else ("need_login" if err == "need_login" else "failed"),
+        "account": (accounts.get(category) or {}).get("account"),
+        "time": datetime.now().isoformat(timespec="seconds"),
+        "error": err,
+    }
+    save_log(log)
+    print(f"{'成功' if ok else '失败(' + str(err) + ')'}: {os.path.basename(video_path)}")
+
+
 def main():
     ap = argparse.ArgumentParser(description="视频号自动发布")
     ap.add_argument("--date", help="发布哪天目录 YYYY-MM-DD，默认今天")
     ap.add_argument("--retry", action="store_true", help="补发失败/待扫码条目")
+    ap.add_argument("--file", help="只发单个视频文件（测试用），传完整路径")
     args = ap.parse_args()
 
     if args.retry:
         run_retry()
+    elif args.file:
+        run_single(args.file)
     else:
         date_str = args.date or datetime.now().strftime("%Y-%m-%d")
         run_date(date_str)
