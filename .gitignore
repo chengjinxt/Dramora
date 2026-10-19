@@ -14,3 +14,7 @@ MoneyPrinterTurbo/mpt_videos/
 # Windows 系统文件
 Thumbs.db
 Desktop.ini
+
+# 视频号登录态（含 cookies，绝不提交）
+MoneyPrinterTurbo/mpt_publish/storage/
+MoneyPrinterTurbo/mpt_publish/publish_log.json

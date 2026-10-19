@@ -1,0 +1,1 @@
+{"_comment":"类别 -> 视频号账号映射。account 为账号代号（对应 storage/<代号>.json 登录态）；hashtag 为发布时自动追加的话题标签","健康":{"account":"health","hashtag":"#健康"},"影视":{"account":"movie","hashtag":"#影视解说"},"情感":{"account":"emotion","hashtag":"#情感"},"科技":{"account":"tech","hashtag":"#科技"}}
