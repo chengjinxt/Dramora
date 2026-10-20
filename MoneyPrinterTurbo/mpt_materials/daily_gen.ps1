@@ -1,4 +1,4 @@
-﻿# 每日 4 条视频批量生成编排脚本（v2）
+﻿# 每日 4 条视频批量生成编排脚本（v3）
 # 用法: powershell -ExecutionPolicy Bypass -File daily_gen.ps1 -ManifestPath E:\...\manifest.json
 # manifest.json 格式:
 # {
@@ -11,6 +11,7 @@
 #   ]
 # }
 # 素材选择逻辑：
+#  0. manifest 中不在素材池内的文件（海报片段/选题定向素材）按 manifest 顺序排在最前，不记 usage；
 #  1. 若 manifest 提供了 materials（worker 按 clip_tags.json 内容匹配选出），优先使用该顺序；
 #  2. 12 天内用过的素材默认不再用（usage.json 记录），除非池子不够用；
 #  3. 按上次使用时间（未用过优先）补足，直到覆盖 65 秒或选满 12 条；
@@ -55,9 +56,32 @@ function Select-Materials($poolDir, $poolName, $preferredFiles) {
   if ($null -eq $poolUsage) { $poolUsage = @{}; $usage[$poolName] = $poolUsage }
 
   $allClips = Get-ChildItem $poolDir -Filter *.mp4 | Sort-Object Name
-  if ($allClips.Count -eq 0) { return @() }
   $durMap = @{}
   foreach ($c in $allClips) { $durMap[$c.Name] = Get-ClipDuration $c.FullName }
+
+  # 外部素材：manifest 指定、但不在素材池内的文件（海报片段/选题定向素材）。
+  # 按 manifest 顺序排在最前，计入覆盖时长，但不记 usage（一次性使用）。
+  $extFiles = @()
+  if ($preferredFiles) {
+    foreach ($p in $preferredFiles) {
+      $name = [System.IO.Path]::GetFileName($p)
+      if (-not $durMap.ContainsKey($name) -and (Test-Path $p) -and ($extFiles -notcontains $p)) {
+        $extFiles += $p
+      }
+    }
+  }
+  $extCovered = 0.0
+  foreach ($f in $extFiles) {
+    $d = Get-ClipDuration $f; if ($d -gt $ClipDuration) { $d = $ClipDuration }
+    $extCovered += $d
+  }
+  $needTarget = $NeedSeconds - $extCovered; if ($needTarget -lt 0) { $needTarget = 0 }
+  $maxClipsEff = $MaxClips - $extFiles.Count; if ($maxClipsEff -lt 0) { $maxClipsEff = 0 }
+
+  if ($allClips.Count -eq 0) {
+    if ($extFiles.Count -gt 0) { return @{ files = @($extFiles); names = @(); pool = $poolName } }
+    return @()
+  }
 
   # 候选顺序：worker 指定的优先（保持其顺序），其余按上次使用日期排（未用过最优先）
   $ordered = @()
@@ -82,7 +106,7 @@ function Select-Materials($poolDir, $poolName, $preferredFiles) {
     foreach ($name in $names) {
       $sel += $name
       $c = $durMap[$name]; if ($c -lt $ClipDuration) { $covered += $c } else { $covered += $ClipDuration }
-      if ($covered -ge $NeedSeconds -or $sel.Count -ge $MaxClips) { break }
+      if ($covered -ge $needTarget -or $sel.Count -ge $maxClipsEff) { break }
     }
     return @{ sel = $sel; covered = $covered }
   }
@@ -92,15 +116,16 @@ function Select-Materials($poolDir, $poolName, $preferredFiles) {
   }
   $r = & $take $fresh
   $selected = $r.sel; $covered = $r.covered
-  if ($covered -lt $NeedSeconds) {
+  if ($covered -lt $needTarget) {
     # 不够用：放宽到全池按 LRU 补
     $r2 = & $take ($ordered | Where-Object { $selected -notcontains $_ })
     $selected = $selected + $r2.sel
   }
   # usage 标记挪到单条视频成功后（失败不记，避免污染轮换）
   $names = ($selected | ForEach-Object { $_ }) -join ","
-  Write-Host ("选中素材(" + $poolName + "): " + $names)
-  return @{ files = @($selected | ForEach-Object { Join-Path $poolDir $_ }); names = @($selected); pool = $poolName }
+  $extNames = ($extFiles | ForEach-Object { [System.IO.Path]::GetFileName($_) }) -join ","
+  Write-Host ("选中素材(" + $poolName + "): [外部] " + $extNames + " | [池] " + $names)
+  return @{ files = @($extFiles) + @($selected | ForEach-Object { Join-Path $poolDir $_ }); names = @($selected); pool = $poolName }
 }
 
 # ---- 主流程 ----
