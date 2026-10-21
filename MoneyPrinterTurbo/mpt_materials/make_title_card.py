@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""生成标题卡 PNG（2026-10-21 改版）。
+"""生成标题卡 PNG（2026-10-22 改版）。
 用法: python make_title_card.py --title "标题文字" --output title.png
-画布 1080x1920 透明底。样式与字幕条（黄底黑字）拉开区别，采用短视频
-常见的标题打法：白色粗体大字 + 黑色描边 + 柔和投影，无底条；
+画布 1080x1920 透明底。样式按用户给的爆款封面参考：黄色粗体大字 +
+黑色描边 + 柔和投影，无底条；与字幕条（黄底黑字）靠形态区分。
 长标题自动断成两行（优先在标点处断），字号自适应居中显示。
 """
 import argparse
@@ -12,7 +12,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W, H = 1080, 1920
-WHITE = (255, 255, 255, 255)
+YELLOW = (255, 230, 0, 255)   # 与字幕条同色 #FFE600
 BLACK = (0, 0, 0, 255)
 MAX_TEXT_W = 980              # 单行文字最大宽度（含描边）
 FONT_SIZE_START = 104
@@ -103,7 +103,7 @@ def main():
     draw = ImageDraw.Draw(img)
     for i, ln in enumerate(lines):
         cy = y_top + i * line_h + sizes[i][1] // 2
-        draw.text((W // 2, cy), ln, font=font, fill=WHITE, anchor="mm",
+        draw.text((W // 2, cy), ln, font=font, fill=YELLOW, anchor="mm",
                   stroke_width=stroke, stroke_fill=BLACK)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
