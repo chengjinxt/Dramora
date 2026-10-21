@@ -1,23 +1,25 @@
 # -*- coding: utf-8 -*-
-"""生成频道风格（黄底黑字圆角条，参考成进学堂字幕条）的标题卡 PNG。
+"""生成标题卡 PNG（2026-10-21 改版）。
 用法: python make_title_card.py --title "标题文字" --output title.png
-画布 1080x1920 透明底，黄色圆角条居中，黑色粗体字。
+画布 1080x1920 透明底。样式与字幕条（黄底黑字）拉开区别，采用短视频
+常见的标题打法：白色粗体大字 + 黑色描边 + 柔和投影，无底条；
+长标题自动断成两行（优先在标点处断），字号自适应居中显示。
 """
 import argparse
 import os
 import sys
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W, H = 1080, 1920
-YELLOW = (255, 230, 0, 255)   # 亮黄，贴近频道字幕条
+WHITE = (255, 255, 255, 255)
 BLACK = (0, 0, 0, 255)
-MAX_TEXT_W = 920              # 文字最大宽度
-FONT_SIZE_START = 72
-FONT_SIZE_MIN = 40
-PAD_X = 44                    # 条内左右留白
-PAD_Y = 30                    # 条内上下留白
-RADIUS = 30                   # 圆角半径
+MAX_TEXT_W = 980              # 单行文字最大宽度（含描边）
+FONT_SIZE_START = 104
+FONT_SIZE_MIN = 54
+LINE_SPACING = 1.28           # 行距倍数
+SPLIT_ABOVE = 10              # 超过这个字数断成两行
+PUNCTS = "，。！？；、,.!?;"
 
 FONT_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
@@ -35,8 +37,25 @@ def find_font():
     raise FileNotFoundError("no Chinese font found in %s" % FONT_DIR)
 
 
-def text_size(draw, text, font):
-    bbox = draw.textbbox((0, 0), text, font=font)
+def split_lines(title):
+    """长标题断成两行：优先在靠近中点的标点后断开，否则对半断。"""
+    if len(title) <= SPLIT_ABOVE:
+        return [title]
+    best = None
+    for i, ch in enumerate(title):
+        if ch in PUNCTS and 0 < i < len(title) - 1:
+            a, b = title[:i + 1], title[i + 1:]
+            score = abs(len(a) - len(b))
+            if best is None or score < best[0]:
+                best = (score, a, b)
+    if best:
+        return [best[1], best[2]]
+    mid = (len(title) + 1) // 2
+    return [title[:mid], title[mid:]]
+
+
+def line_size(draw, text, font, stroke):
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 
@@ -54,30 +73,43 @@ def main():
     font_path = find_font()
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
+    lines = split_lines(title)
 
-    # 字号自适应：从大到小直到放进 MAX_TEXT_W
+    # 字号自适应：从大到小，直到每一行都放进 MAX_TEXT_W
     size = FONT_SIZE_START
-    font = ImageFont.truetype(font_path, size)
-    tw, th = text_size(draw, title, font)
-    while tw > MAX_TEXT_W and size > FONT_SIZE_MIN:
-        size -= 4
+    while size > FONT_SIZE_MIN:
         font = ImageFont.truetype(font_path, size)
-        tw, th = text_size(draw, title, font)
+        stroke = max(4, size // 11)
+        if all(line_size(draw, ln, font, stroke)[0] <= MAX_TEXT_W for ln in lines):
+            break
+        size -= 4
+    font = ImageFont.truetype(font_path, size)
+    stroke = max(4, size // 11)
 
-    bar_w = tw + PAD_X * 2
-    bar_h = th + PAD_Y * 2
-    x0 = (W - bar_w) // 2
-    y0 = (H - bar_h) // 2
-    x1 = x0 + bar_w
-    y1 = y0 + bar_h
+    sizes = [line_size(draw, ln, font, stroke) for ln in lines]
+    line_h = int(size * LINE_SPACING)
+    total_h = line_h * (len(lines) - 1) + sizes[-1][1]
+    y_top = (H - total_h) // 2
 
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=RADIUS, fill=YELLOW)
-    # 文字在条内居中（用 anchor 避免基线偏移）
-    draw.text((W // 2, H // 2), title, font=font, fill=BLACK, anchor="mm")
+    # 柔和投影层：同字形黑色版向下偏移后高斯模糊
+    shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    sdraw = ImageDraw.Draw(shadow)
+    for i, ln in enumerate(lines):
+        cy = y_top + i * line_h + sizes[i][1] // 2
+        sdraw.text((W // 2, cy + 7), ln, font=font, fill=(0, 0, 0, 150),
+                   anchor="mm", stroke_width=stroke, stroke_fill=(0, 0, 0, 150))
+    img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(7)))
+
+    draw = ImageDraw.Draw(img)
+    for i, ln in enumerate(lines):
+        cy = y_top + i * line_h + sizes[i][1] // 2
+        draw.text((W // 2, cy), ln, font=font, fill=WHITE, anchor="mm",
+                  stroke_width=stroke, stroke_fill=BLACK)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     img.save(args.output, "PNG")
-    print("saved %s (font=%s size=%d)" % (args.output, os.path.basename(font_path), size))
+    print("saved %s (font=%s size=%d lines=%d)" % (
+        args.output, os.path.basename(font_path), size, len(lines)))
 
 
 if __name__ == "__main__":
