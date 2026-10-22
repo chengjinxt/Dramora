@@ -189,6 +189,8 @@ foreach ($v in $manifest.videos) {
   $dest = Join-Path $outDir $destName
   Copy-Item $final $dest -Force
   foreach ($n in $sel.names) { $usage[$sel.pool][$n] = $today }
+  # 每条成功后立即落盘：整轮中途失败/被杀也不丢已完成视频的用量记录（2026-10-22 修复，10-21 曾因此丢三条记录）
+  $usage | ConvertTo-Json -Depth 5 | Set-Content $UsagePath -Encoding utf8
 
   # ---- 片头标题卡：黄底黑字圆角条（频道风格），覆盖前 3 秒 ----
   $cardPng = Join-Path $outDir "title_card.png"
